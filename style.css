@@ -1,1 +1,941 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
 
+body {
+    font-family: 'Courier New', monospace;
+    background: #000;
+    color: #fff;
+    overflow: hidden;
+}
+
+/* Character Customization Screen */
+#customization-screen {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    background: linear-gradient(135deg, #1e3a8a 0%, #7c3aed 100%);
+}
+
+.custom-panel {
+    background: rgba(0, 0, 0, 0.95);
+    padding: 40px;
+    border-radius: 20px;
+    border: 3px solid gold;
+    max-width: 700px;
+    width: 90%;
+    box-shadow: 0 0 50px rgba(255, 215, 0, 0.5);
+}
+
+.custom-panel h1 {
+    text-align: center;
+    color: gold;
+    font-size: 2.5em;
+    margin-bottom: 30px;
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+}
+
+.char-preview {
+    width: 200px;
+    height: 200px;
+    margin: 0 auto 30px;
+    background: rgba(255,255,255,0.1);
+    border: 2px solid gold;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#preview-canvas {
+    display: block;
+}
+
+.input-group {
+    margin-bottom: 20px;
+}
+
+.input-group label {
+    display: block;
+    margin-bottom: 8px;
+    color: gold;
+    font-weight: bold;
+}
+
+.input-group input,
+.input-group select {
+    width: 100%;
+    padding: 12px;
+    background: rgba(255,255,255,0.1);
+    border: 2px solid #666;
+    border-radius: 8px;
+    color: #fff;
+    font-size: 16px;
+    font-family: 'Courier New', monospace;
+}
+
+.input-group input:focus,
+.input-group select:focus {
+    outline: none;
+    border-color: gold;
+}
+
+.input-group select option {
+    background: #222;
+    color: #fff;
+}
+
+.color-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.color-group label {
+    display: block;
+    margin-bottom: 8px;
+    color: gold;
+    font-weight: bold;
+}
+
+.color-group input[type="color"] {
+    width: 100%;
+    height: 50px;
+    cursor: pointer;
+    border: 2px solid #666;
+    border-radius: 8px;
+    background: transparent;
+}
+
+.start-btn {
+    width: 100%;
+    padding: 15px;
+    background: linear-gradient(135deg, gold 0%, #ff8c00 100%);
+    color: #000;
+    border: none;
+    border-radius: 10px;
+    font-size: 20px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+    text-shadow: 1px 1px 2px rgba(255,255,255,0.5);
+}
+
+.start-btn:hover {
+    transform: scale(1.05);
+    box-shadow: 0 0 20px gold;
+}
+
+.start-btn:disabled {
+    background: #666;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* Game Screen */
+#game-screen {
+    display: none;
+    height: 100vh;
+    flex-direction: column;
+}
+
+/* HUD */
+#hud {
+    background: rgba(0,0,0,0.95);
+    padding: 15px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 3px solid gold;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+}
+
+.hud-left {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.player-info {
+    font-size: 18px;
+    color: gold;
+}
+
+.quick-stats {
+    display: flex;
+    gap: 20px;
+    font-size: 14px;
+    color: #ccc;
+}
+
+.stat-bars {
+    display: flex;
+    gap: 20px;
+}
+
+.stat-bar {
+    min-width: 180px;
+}
+
+.stat-label {
+    font-size: 12px;
+    margin-bottom: 4px;
+    display: flex;
+    justify-content: space-between;
+    color: #ccc;
+}
+
+.bar-bg {
+    background: #222;
+    height: 20px;
+    border-radius: 10px;
+    overflow: hidden;
+    border: 2px solid #444;
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
+}
+
+.bar-fill {
+    height: 100%;
+    transition: width 0.3s ease;
+}
+
+.hp-bar {
+    background: linear-gradient(to right, #ef4444, #dc2626);
+    box-shadow: 0 0 10px #ef4444;
+}
+
+.mp-bar {
+    background: linear-gradient(to right, #3b82f6, #1d4ed8);
+    box-shadow: 0 0 10px #3b82f6;
+}
+
+.st-bar {
+    background: linear-gradient(to right, #22c55e, #16a34a);
+    box-shadow: 0 0 10px #22c55e;
+}
+
+.xp-bar {
+    background: linear-gradient(to right, #eab308, #ca8a04);
+    box-shadow: 0 0 10px #eab308;
+}
+
+/* Main Game Area */
+#main-area {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+}
+
+#game-world {
+    flex: 1;
+    position: relative;
+    background: #1a4d1a;
+    overflow: hidden;
+}
+
+#world-canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    image-rendering: pixelated;
+}
+
+#entities {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+}
+
+.entity {
+    position: absolute;
+    pointer-events: auto;
+}
+
+.npc-sprite,
+.enemy-sprite,
+.resource-sprite {
+    position: absolute;
+    width: 50px;
+    height: 50px;
+    cursor: pointer;
+    transition: transform 0.1s;
+}
+
+.npc-sprite:hover,
+.enemy-sprite:hover,
+.resource-sprite:hover {
+    transform: scale(1.1);
+}
+
+/* Sidebar */
+#sidebar {
+    width: 320px;
+    background: rgba(0,0,0,0.95);
+    border-left: 3px solid gold;
+    overflow-y: auto;
+    padding: 15px;
+}
+
+#sidebar::-webkit-scrollbar {
+    width: 8px;
+}
+
+#sidebar::-webkit-scrollbar-track {
+    background: #111;
+}
+
+#sidebar::-webkit-scrollbar-thumb {
+    background: gold;
+    border-radius: 4px;
+}
+
+.sidebar-section {
+    margin-bottom: 20px;
+    background: rgba(255,255,255,0.05);
+    padding: 15px;
+    border-radius: 8px;
+    border: 1px solid #333;
+}
+
+.sidebar-section h3 {
+    color: gold;
+    margin-bottom: 12px;
+    font-size: 16px;
+    border-bottom: 2px solid gold;
+    padding-bottom: 6px;
+}
+
+/* Hotbar */
+.hotbar {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    gap: 6px;
+}
+
+.hotbar-slot {
+    aspect-ratio: 1;
+    background: rgba(0,0,0,0.5);
+    border: 2px solid #444;
+    border-radius: 6px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    position: relative;
+    transition: all 0.2s;
+}
+
+.hotbar-slot:hover {
+    background: rgba(255,255,255,0.1);
+    border-color: gold;
+    transform: translateY(-2px);
+}
+
+.hotbar-slot.has-item {
+    border-color: #4CAF50;
+    background: rgba(76,175,80,0.1);
+}
+
+.slot-icon {
+    font-size: 24px;
+}
+
+.slot-count {
+    position: absolute;
+    bottom: 4px;
+    right: 6px;
+    font-size: 10px;
+    background: rgba(0,0,0,0.8);
+    padding: 2px 4px;
+    border-radius: 3px;
+}
+
+.slot-hotkey {
+    position: absolute;
+    top: 4px;
+    left: 6px;
+    font-size: 10px;
+    background: rgba(0,0,0,0.8);
+    padding: 2px 4px;
+    border-radius: 3px;
+    color: gold;
+}
+
+/* Equipment Slots */
+.equipment-slots {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+}
+
+.eq-slot {
+    background: rgba(0,0,0,0.5);
+    border: 2px solid #444;
+    border-radius: 8px;
+    padding: 10px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.eq-slot:hover {
+    border-color: gold;
+    background: rgba(255,255,255,0.1);
+}
+
+.slot-label {
+    font-size: 10px;
+    color: #888;
+    margin-bottom: 5px;
+}
+
+.slot-content {
+    font-size: 24px;
+}
+
+/* NPC List */
+#npc-list {
+    font-size: 13px;
+}
+
+.npc-item {
+    padding: 10px;
+    margin: 6px 0;
+    background: rgba(255,255,255,0.05);
+    border-left: 3px solid #666;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.npc-item:hover {
+    background: rgba(255,255,255,0.15);
+    border-left-color: gold;
+}
+
+.npc-name {
+    font-weight: bold;
+    margin-bottom: 4px;
+}
+
+.npc-status {
+    font-size: 11px;
+    color: #888;
+}
+
+.relationship-bar {
+    height: 6px;
+    background: #222;
+    border-radius: 3px;
+    margin-top: 6px;
+    overflow: hidden;
+}
+
+.relationship-fill {
+    height: 100%;
+    transition: width 0.3s;
+}
+
+.rel-enemy { background: #ef4444; }
+.rel-neutral { background: #888; }
+.rel-friend { background: #22c55e; }
+.rel-best-friend { background: gold; }
+
+/* Quest List */
+.quest-item {
+    padding: 12px;
+    margin: 8px 0;
+    background: rgba(255,215,0,0.1);
+    border-left: 3px solid gold;
+    border-radius: 4px;
+}
+
+.quest-title {
+    color: gold;
+    font-weight: bold;
+    margin-bottom: 6px;
+}
+
+.quest-desc {
+    font-size: 12px;
+    color: #ccc;
+    margin-bottom: 4px;
+}
+
+.quest-progress {
+    font-size: 11px;
+    color: #888;
+}
+
+.empty-text {
+    text-align: center;
+    color: #666;
+    font-size: 12px;
+    font-style: italic;
+}
+
+/* Skills */
+.skill-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+}
+
+.skill-slot {
+    background: rgba(0,0,0,0.5);
+    border: 2px solid #444;
+    border-radius: 6px;
+    padding: 8px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.skill-slot:hover {
+    border-color: gold;
+    transform: scale(1.05);
+}
+
+.skill-slot.unlocked {
+    border-color: #4CAF50;
+    background: rgba(76,175,80,0.1);
+}
+
+.skill-icon {
+    font-size: 20px;
+    margin-bottom: 4px;
+}
+
+.skill-name {
+    font-size: 10px;
+    font-weight: bold;
+}
+
+.skill-level {
+    font-size: 9px;
+    color: #888;
+}
+
+/* Controls */
+.controls-list {
+    font-size: 12px;
+    line-height: 1.8;
+}
+
+.controls-list div {
+    display: flex;
+    justify-content: space-between;
+    padding: 4px 0;
+    border-bottom: 1px solid #222;
+}
+
+.controls-list kbd {
+    background: #333;
+    padding: 2px 6px;
+    border-radius: 3px;
+    border: 1px solid #555;
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    color: gold;
+}
+
+/* Time & Weather */
+#time-weather {
+    position: absolute;
+    top: 100px;
+    right: 20px;
+    background: rgba(0,0,0,0.8);
+    padding: 10px 15px;
+    border-radius: 8px;
+    border: 2px solid gold;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 14px;
+}
+
+/* Dialog Box */
+.dialog-box {
+    position: fixed;
+    bottom: 80px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0,0,0,0.95);
+    border: 3px solid gold;
+    border-radius: 12px;
+    padding: 25px;
+    max-width: 700px;
+    width: 90%;
+    display: none;
+    z-index: 1000;
+    box-shadow: 0 0 30px rgba(255,215,0,0.5);
+}
+
+.dialog-box.show {
+    display: block;
+    animation: dialogSlideUp 0.3s ease-out;
+}
+
+@keyframes dialogSlideUp {
+    from {
+        bottom: -100px;
+        opacity: 0;
+    }
+    to {
+        bottom: 80px;
+        opacity: 1;
+    }
+}
+
+#dialog-speaker {
+    color: gold;
+    font-size: 20px;
+    margin-bottom: 12px;
+}
+
+#dialog-text {
+    font-size: 16px;
+    line-height: 1.6;
+    margin-bottom: 15px;
+    color: #ccc;
+}
+
+#dialog-options {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.dialog-option {
+    padding: 12px;
+    background: rgba(255,255,255,0.1);
+    border: 2px solid #666;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: left;
+}
+
+.dialog-option:hover {
+    background: rgba(255,255,255,0.2);
+    border-color: gold;
+    transform: translateX(10px);
+}
+
+/* Menu Overlays */
+.menu-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.8);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 999;
+}
+
+.menu-overlay.show {
+    display: flex;
+}
+
+.menu-panel {
+    background: rgba(0,0,0,0.95);
+    border: 3px solid gold;
+    border-radius: 15px;
+    padding: 30px;
+    max-width: 900px;
+    width: 90%;
+    max-height: 85vh;
+    overflow-y: auto;
+    position: relative;
+}
+
+.menu-panel.large {
+    max-width: 1100px;
+}
+
+.menu-panel h2 {
+    color: gold;
+    text-align: center;
+    margin-bottom: 25px;
+    font-size: 28px;
+}
+
+.close-btn {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    background: rgba(255,0,0,0.7);
+    border: 2px solid #fff;
+    color: #fff;
+    width: 35px;
+    height: 35px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 24px;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+}
+
+.close-btn:hover {
+    background: rgba(255,0,0,0.9);
+    transform: rotate(90deg);
+}
+
+/* Recipe Grid */
+.recipe-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 15px;
+}
+
+.recipe-card {
+    background: rgba(255,255,255,0.05);
+    border: 2px solid #444;
+    border-radius: 10px;
+    padding: 15px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.recipe-card:hover {
+    border-color: gold;
+    background: rgba(255,255,255,0.1);
+    transform: translateY(-3px);
+}
+
+.recipe-card.craftable {
+    border-color: #4CAF50;
+}
+
+.recipe-icon {
+    font-size: 40px;
+    text-align: center;
+    margin-bottom: 10px;
+}
+
+.recipe-name {
+    font-weight: bold;
+    text-align: center;
+    margin-bottom: 10px;
+    color: gold;
+}
+
+.recipe-requires {
+    font-size: 12px;
+    color: #ccc;
+}
+
+.recipe-requires div {
+    margin: 4px 0;
+}
+
+.craft-btn {
+    width: 100%;
+    margin-top: 10px;
+    padding: 8px;
+    background: linear-gradient(135deg, #4CAF50, #45a049);
+    border: none;
+    border-radius: 6px;
+    color: #fff;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.craft-btn:hover {
+    background: linear-gradient(135deg, #45a049, #4CAF50);
+    transform: scale(1.05);
+}
+
+.craft-btn:disabled {
+    background: #666;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* Full Inventory */
+.full-inventory {
+    display: grid;
+    grid-template-columns: repeat(10, 1fr);
+    gap: 8px;
+}
+
+.inv-slot {
+    aspect-ratio: 1;
+    background: rgba(0,0,0,0.5);
+    border: 2px solid #444;
+    border-radius: 6px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    position: relative;
+    transition: all 0.2s;
+}
+
+.inv-slot:hover {
+    border-color: gold;
+    transform: scale(1.1);
+}
+
+.inv-slot.has-item {
+    border-color: #4CAF50;
+}
+
+/* Combat UI */
+#combat-ui {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 800;
+}
+
+.combat-panel {
+    background: rgba(0,0,0,0.95);
+    border: 3px solid #dc2626;
+    border-radius: 12px;
+    padding: 20px;
+    min-width: 500px;
+}
+
+.combat-panel h3 {
+    color: #ef4444;
+    text-align: center;
+    margin-bottom: 15px;
+    font-size: 24px;
+}
+
+.enemy-info {
+    margin-bottom: 15px;
+}
+
+#enemy-name {
+    color: #fff;
+    margin-bottom: 8px;
+    font-weight: bold;
+}
+
+#enemy-hp-bar {
+    width: 100%;
+}
+
+.combat-actions {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+}
+
+.combat-actions button {
+    padding: 12px;
+    background: linear-gradient(135deg, #444, #222);
+    border: 2px solid #666;
+    border-radius: 8px;
+    color: #fff;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 14px;
+}
+
+.combat-actions button:hover {
+    border-color: gold;
+    transform: scale(1.05);
+    background: linear-gradient(135deg, #555, #333);
+}
+
+/* Notifications */
+#notification-area {
+    position: fixed;
+    top: 100px;
+    right: 20px;
+    z-index: 2000;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-width: 350px;
+}
+
+.notification {
+    background: rgba(0,0,0,0.95);
+    border: 2px solid gold;
+    border-radius: 8px;
+    padding: 15px;
+    animation: slideInRight 0.3s ease-out, fadeOut 0.3s ease-out 4.7s;
+    box-shadow: 0 0 20px rgba(255,215,0,0.5);
+}
+
+@keyframes slideInRight {
+    from {
+        transform: translateX(400px);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes fadeOut {
+    to {
+        opacity: 0;
+        transform: translateX(400px);
+    }
+}
+
+.notification.success {
+    border-color: #22c55e;
+}
+
+.notification.error {
+    border-color: #ef4444;
+}
+
+.notification.info {
+    border-color: #3b82f6;
+}
+
+/* Map Canvas */
+#map-canvas {
+    border: 2px solid #444;
+    border-radius: 8px;
+    display: block;
+    margin: 0 auto;
+}
+
+/* Responsive */
+@media (max-width: 1200px) {
+    #sidebar {
+        width: 280px;
+    }
+    
+    .stat-bars {
+        flex-direction: column;
+        gap: 8px;
+    }
+}
+
+@media (max-width: 768px) {
+    #sidebar {
+        display: none;
+    }
+    
+    .custom-panel {
+        padding: 20px;
+    }
+}
