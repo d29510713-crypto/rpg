@@ -1,1 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Medieval RPG - Complete Edition</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Character Customization Screen -->
+    <div id="customization-screen">
+        <div class="custom-panel">
+            <h1>⚔️ Create Your Hero ⚔️</h1>
+            
+            <div class="char-preview">
+                <canvas id="preview-canvas" width="200" height="200"></canvas>
+            </div>
 
+            <div class="input-group">
+                <label>Character Name:</label>
+                <input type="text" id="char-name" placeholder="Enter your hero's name" maxlength="20">
+            </div>
+
+            <div class="input-group">
+                <label>Class:</label>
+                <select id="char-class">
+                    <option value="warrior">⚔️ Warrior - High HP, Strong melee attacks</option>
+                    <option value="mage">🔮 Mage - High Mana, Powerful magic</option>
+                    <option value="rogue">🗡️ Rogue - Fast, Critical hits</option>
+                    <option value="ranger">🏹 Ranger - Ranged combat, Agile</option>
+                </select>
+            </div>
+
+            <div class="color-grid">
+                <div class="color-group">
+                    <label>Skin Tone:</label>
+                    <input type="color" id="skin-color" value="#ffd1a3">
+                </div>
+                <div class="color-group">
+                    <label>Hair Color:</label>
+                    <input type="color" id="hair-color" value="#4a3728">
+                </div>
+                <div class="color-group">
+                    <label>Shirt Color:</label>
+                    <input type="color" id="shirt-color" value="#8b4513">
+                </div>
+                <div class="color-group">
+                    <label>Pants Color:</label>
+                    <input type="color" id="pants-color" value="#2f4f4f">
+                </div>
+            </div>
+
+            <button class="start-btn" id="start-game-btn">Start Adventure!</button>
+        </div>
+    </div>
+
+    <!-- Game Screen -->
+    <div id="game-screen">
+        <!-- HUD -->
+        <div id="hud">
+            <div class="hud-left">
+                <div class="player-info">
+                    <strong id="player-name">Hero</strong> - Lvl <span id="player-level">1</span>
+                    <span id="player-class"></span>
+                </div>
+                <div class="quick-stats">
+                    <span>⚔️ ATK: <span id="attack-stat">10</span></span>
+                    <span>🛡️ DEF: <span id="defense-stat">5</span></span>
+                    <span>💰 Gold: <span id="gold-amount">0</span></span>
+                </div>
+            </div>
+            
+            <div class="stat-bars">
+                <div class="stat-bar">
+                    <div class="stat-label">
+                        <span>❤️ Health</span>
+                        <span id="hp-text">100/100</span>
+                    </div>
+                    <div class="bar-bg">
+                        <div class="bar-fill hp-bar" id="hp-bar" style="width: 100%"></div>
+                    </div>
+                </div>
+                <div class="stat-bar">
+                    <div class="stat-label">
+                        <span>✨ Mana</span>
+                        <span id="mp-text">50/50</span>
+                    </div>
+                    <div class="bar-bg">
+                        <div class="bar-fill mp-bar" id="mp-bar" style="width: 100%"></div>
+                    </div>
+                </div>
+                <div class="stat-bar">
+                    <div class="stat-label">
+                        <span>💪 Stamina</span>
+                        <span id="st-text">100/100</span>
+                    </div>
+                    <div class="bar-bg">
+                        <div class="bar-fill st-bar" id="st-bar" style="width: 100%"></div>
+                    </div>
+                </div>
+                <div class="stat-bar">
+                    <div class="stat-label">
+                        <span>⭐ EXP</span>
+                        <span id="xp-text">0/100</span>
+                    </div>
+                    <div class="bar-bg">
+                        <div class="bar-fill xp-bar" id="xp-bar" style="width: 0%"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Game Area -->
+        <div id="main-area">
+            <!-- Game World -->
+            <div id="game-world">
+                <canvas id="world-canvas"></canvas>
+                <div id="entities"></div>
+            </div>
+
+            <!-- Sidebar -->
+            <div id="sidebar">
+                <!-- Hotbar Inventory -->
+                <div class="sidebar-section">
+                    <h3>🎒 Hotbar (1-8)</h3>
+                    <div class="hotbar" id="hotbar"></div>
+                </div>
+
+                <!-- Equipment -->
+                <div class="sidebar-section">
+                    <h3>⚔️ Equipment</h3>
+                    <div class="equipment-slots">
+                        <div class="eq-slot" data-slot="weapon">
+                            <div class="slot-label">Weapon</div>
+                            <div class="slot-content" id="eq-weapon">Empty</div>
+                        </div>
+                        <div class="eq-slot" data-slot="armor">
+                            <div class="slot-label">Armor</div>
+                            <div class="slot-content" id="eq-armor">Empty</div>
+                        </div>
+                        <div class="eq-slot" data-slot="shield">
+                            <div class="slot-label">Shield</div>
+                            <div class="slot-content" id="eq-shield">Empty</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- NPCs -->
+                <div class="sidebar-section">
+                    <h3>👥 Nearby NPCs</h3>
+                    <div id="npc-list"></div>
+                </div>
+
+                <!-- Active Quests -->
+                <div class="sidebar-section">
+                    <h3>📜 Active Quests</h3>
+                    <div id="quest-list">
+                        <p class="empty-text">No active quests</p>
+                    </div>
+                </div>
+
+                <!-- Skills -->
+                <div class="sidebar-section">
+                    <h3>🌟 Skills</h3>
+                    <div class="skill-grid" id="skill-grid"></div>
+                </div>
+
+                <!-- Controls -->
+                <div class="sidebar-section">
+                    <h3>⌨️ Controls</h3>
+                    <div class="controls-list">
+                        <div><kbd>WASD</kbd> Move</div>
+                        <div><kbd>SPACE</kbd> Interact/Gather</div>
+                        <div><kbd>E</kbd> Talk to NPC</div>
+                        <div><kbd>F</kbd> Attack</div>
+                        <div><kbd>Q</kbd> Use Skill</div>
+                        <div><kbd>C</kbd> Crafting</div>
+                        <div><kbd>I</kbd> Inventory</div>
+                        <div><kbd>M</kbd> Map</div>
+                        <div><kbd>R</kbd> Rest/Heal</div>
+                        <div><kbd>1-8</kbd> Hotbar Items</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Time & Weather -->
+        <div id="time-weather">
+            <span id="time-display">12:00 PM</span>
+            <span id="weather-display">☀️ Clear</span>
+        </div>
+    </div>
+
+    <!-- Dialog Box -->
+    <div class="dialog-box" id="dialog-box">
+        <button class="close-btn" onclick="closeDialog()">×</button>
+        <h3 id="dialog-speaker"></h3>
+        <p id="dialog-text"></p>
+        <div id="dialog-options"></div>
+    </div>
+
+    <!-- Crafting Menu -->
+    <div class="menu-overlay" id="crafting-menu">
+        <div class="menu-panel">
+            <button class="close-btn" onclick="closeCrafting()">×</button>
+            <h2>🔨 Crafting Station</h2>
+            <div class="recipe-grid" id="recipe-grid"></div>
+        </div>
+    </div>
+
+    <!-- Inventory Menu -->
+    <div class="menu-overlay" id="inventory-menu">
+        <div class="menu-panel">
+            <button class="close-btn" onclick="closeInventory()">×</button>
+            <h2>🎒 Full Inventory</h2>
+            <div class="full-inventory" id="full-inventory"></div>
+        </div>
+    </div>
+
+    <!-- Map Menu -->
+    <div class="menu-overlay" id="map-menu">
+        <div class="menu-panel large">
+            <button class="close-btn" onclick="closeMap()">×</button>
+            <h2>🗺️ World Map</h2>
+            <canvas id="map-canvas" width="800" height="600"></canvas>
+        </div>
+    </div>
+
+    <!-- Combat UI -->
+    <div id="combat-ui" style="display: none;">
+        <div class="combat-panel">
+            <h3>⚔️ Combat!</h3>
+            <div class="enemy-info">
+                <div id="enemy-name">Enemy</div>
+                <div class="bar-bg">
+                    <div class="bar-fill hp-bar" id="enemy-hp-bar" style="width: 100%"></div>
+                </div>
+            </div>
+            <div class="combat-actions">
+                <button onclick="attackEnemy()">⚔️ Attack</button>
+                <button onclick="useSkillInCombat()">🔮 Skill</button>
+                <button onclick="defendInCombat()">🛡️ Defend</button>
+                <button onclick="fleeCombat()">🏃 Flee</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification Area -->
+    <div id="notification-area"></div>
+
+    <script src="game.js"></script>
+</body>
+</html>
