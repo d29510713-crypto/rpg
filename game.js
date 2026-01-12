@@ -1,6 +1,252 @@
-// ========================================
+inventory: {},
+    equipment: {
+        weapon: null,
+        armor: null,
+        shield: null
+    },
+    npcs: [],
+    enemies: [],
+    resources: [],
+    quests: [],
+    skills: {},
+    keys: {},
+    canvas: null,
+    ctx: null,
+    tiles: {},
+    chunks: {},
+    loadedChunks: new Set(),
+    
+    // ENDING SYSTEM
+    endings: {
+        karma: 0, // -100 to 100 (evil to good)
+        questsCompleted: 0,
+        npcsHelped: 0,
+        enemiesKilled: 0,
+        reachedEnding: false,
+        endingType: null // 'hero', 'tyrant', 'neutral'
+    },
+    
+    // Main Story Quest
+    mainQuest: {
+        stage: 0, // 0-5
+        stages: [
+            { id: 0, name: 'The Beginning', desc: 'Explore the world and gain strength' },
+            { id: 1, name: 'The Dark Forces Rise', desc: 'Dark creatures threaten the kingdom' },
+            { id: 2, name: 'The Choice', desc: 'Will you save or conquer?' },
+            { id: 3, name: 'The Path Chosen', desc: 'Your destiny unf// ========================================
 // MEDIEVAL RPG - MASSIVE WORLD EDITION
 // ========================================
+
+// ========================================
+// MUSIC SYSTEM
+// ========================================
+
+const MusicSystem = {
+    tracks: {},
+    currentTrack: null,
+    currentAudio: null,
+    volume: 0.5,
+    enabled: true,
+    fadeSpeed: 0.02,
+
+    // Initialize all music tracks
+    init: function() {
+        // Define your music tracks here
+        // Replace these URLs with your actual music file paths
+        this.tracks = {
+            mainMenu: { 
+                url: 'music/main-menu.mp3', 
+                loop: true,
+                volume: 0.6
+            },
+            townDay: { 
+                url: 'music/town-day.mp3', 
+                loop: true,
+                volume: 0.4
+            },
+            townNight: { 
+                url: 'music/town-night.mp3', 
+                loop: true,
+                volume: 0.3
+            },
+            exploration: { 
+                url: 'music/exploration.mp3', 
+                loop: true,
+                volume: 0.5
+            },
+            forest: { 
+                url: 'music/forest.mp3', 
+                loop: true,
+                volume: 0.4
+            },
+            mountains: { 
+                url: 'music/mountains.mp3', 
+                loop: true,
+                volume: 0.5
+            },
+            combat: { 
+                url: 'music/combat.mp3', 
+                loop: true,
+                volume: 0.7
+            },
+            bossBattle: { 
+                url: 'music/boss-battle.mp3', 
+                loop: true,
+                volume: 0.8
+            },
+            victory: { 
+                url: 'music/victory.mp3', 
+                loop: false,
+                volume: 0.6
+            },
+            night: { 
+                url: 'music/night.mp3', 
+                loop: true,
+                volume: 0.3
+            },
+            dramatic: { 
+                url: 'music/dramatic.mp3', 
+                loop: false,
+                volume: 0.5
+            },
+            levelUp: { 
+                url: 'music/level-up.mp3', 
+                loop: false,
+                volume: 0.7
+            }
+        };
+
+        // Preload audio elements
+        Object.keys(this.tracks).forEach(key => {
+            const track = this.tracks[key];
+            track.audio = new Audio(track.url);
+            track.audio.loop = track.loop;
+            track.audio.volume = 0;
+            track.audio.preload = 'auto';
+        });
+
+        console.log('Music system initialized with', Object.keys(this.tracks).length, 'tracks');
+    },
+
+    // Play a specific track with smooth fade
+    play: function(trackName, fadeIn = true) {
+        if (!this.enabled) return;
+        
+        const track = this.tracks[trackName];
+        if (!track) {
+            console.warn('Track not found:', trackName);
+            return;
+        }
+
+        // If same track is playing, do nothing
+        if (this.currentTrack === trackName && this.currentAudio && !this.currentAudio.paused) {
+            return;
+        }
+
+        // Fade out current track
+        if (this.currentAudio) {
+            this.fadeOut(this.currentAudio, () => {
+                this.currentAudio.pause();
+                this.currentAudio.currentTime = 0;
+            });
+        }
+
+        // Play new track
+        this.currentTrack = trackName;
+        this.currentAudio = track.audio;
+        
+        if (fadeIn) {
+            this.currentAudio.volume = 0;
+            this.currentAudio.play().catch(e => console.log('Audio play prevented:', e));
+            this.fadeIn(this.currentAudio, track.volume * this.volume);
+        } else {
+            this.currentAudio.volume = track.volume * this.volume;
+            this.currentAudio.play().catch(e => console.log('Audio play prevented:', e));
+        }
+
+        console.log('Now playing:', trackName);
+    },
+
+    // Fade in audio
+    fadeIn: function(audio, targetVolume) {
+        const fadeInterval = setInterval(() => {
+            if (audio.volume < targetVolume - this.fadeSpeed) {
+                audio.volume = Math.min(audio.volume + this.fadeSpeed, targetVolume);
+            } else {
+                audio.volume = targetVolume;
+                clearInterval(fadeInterval);
+            }
+        }, 50);
+    },
+
+    // Fade out audio
+    fadeOut: function(audio, callback) {
+        const fadeInterval = setInterval(() => {
+            if (audio.volume > this.fadeSpeed) {
+                audio.volume = Math.max(audio.volume - this.fadeSpeed, 0);
+            } else {
+                audio.volume = 0;
+                clearInterval(fadeInterval);
+                if (callback) callback();
+            }
+        }, 50);
+    },
+
+    // Stop current track
+    stop: function(fadeOut = true) {
+        if (!this.currentAudio) return;
+
+        if (fadeOut) {
+            this.fadeOut(this.currentAudio, () => {
+                this.currentAudio.pause();
+                this.currentAudio.currentTime = 0;
+                this.currentAudio = null;
+                this.currentTrack = null;
+            });
+        } else {
+            this.currentAudio.pause();
+            this.currentAudio.currentTime = 0;
+            this.currentAudio = null;
+            this.currentTrack = null;
+        }
+    },
+
+    // Set master volume
+    setVolume: function(vol) {
+        this.volume = Math.max(0, Math.min(1, vol));
+        if (this.currentAudio) {
+            const track = this.tracks[this.currentTrack];
+            this.currentAudio.volume = track.volume * this.volume;
+        }
+    },
+
+    // Toggle music on/off
+    toggle: function() {
+        this.enabled = !this.enabled;
+        if (!this.enabled && this.currentAudio) {
+            this.stop(true);
+        }
+        return this.enabled;
+    },
+
+    // Get dynamic track based on game state
+    getDynamicTrack: function() {
+        if (game.player.inCombat) {
+            return 'combat';
+        }
+
+        const terrain = getTerrainAt(game.player.x, game.player.y);
+        const hour = Math.floor(game.world.time / 60);
+        const isNight = hour < 6 || hour >= 20;
+
+        if (terrain === TERRAIN.FOREST) return 'forest';
+        if (terrain === TERRAIN.MOUNTAIN || terrain === TERRAIN.SNOW) return 'mountains';
+        
+        if (isNight) return 'night';
+        
+        return 'exploration';
+    }
+};
 
 // Game State
 const game = {
@@ -57,7 +303,60 @@ const game = {
     ctx: null,
     tiles: {},
     chunks: {},
-    loadedChunks: new Set()
+    loadedChunks: new Set(),
+    
+    // ENDING SYSTEM - 3 Possible Endings
+    story: {
+        karma: 0, // Tracks good/evil actions (-100 to 100)
+        questsCompleted: 0,
+        alliesAlive: 0,
+        enemiesKilled: 0,
+        betrayals: 0,
+        heroicActs: 0,
+        currentStage: 0,
+        reachedFinalBattle: false,
+        endingAchieved: null, // 'good', 'evil', 'bad'
+        
+        // Story stages leading to endings
+        stages: [
+            { 
+                id: 0, 
+                name: 'The Awakening', 
+                desc: 'A new hero emerges in a world threatened by darkness',
+                requirement: { level: 1 }
+            },
+            { 
+                id: 1, 
+                name: 'Growing Darkness', 
+                desc: 'Evil forces grow stronger. Choose your path wisely',
+                requirement: { level: 5, enemiesKilled: 20 }
+            },
+            { 
+                id: 2, 
+                name: 'The Choice', 
+                desc: 'Your actions define who you are. Hero or villain?',
+                requirement: { level: 10, karma: -50 } // Can go either way
+            },
+            { 
+                id: 3, 
+                name: 'Point of No Return', 
+                desc: 'The final battle approaches. Are you ready?',
+                requirement: { level: 15 }
+            },
+            { 
+                id: 4, 
+                name: 'The Final Battle', 
+                desc: 'Face your destiny. The fate of all hangs in the balance',
+                requirement: { level: 20 }
+            }
+        ],
+        
+        // Key NPCs that are your "friends/allies"
+        keyAllies: [],
+        
+        // The main villain
+        villain: null
+    }
 };
 
 // Terrain types
@@ -271,6 +570,10 @@ function initializeGame() {
     game.canvas.width = window.innerWidth - 320;
     game.canvas.height = window.innerHeight - 80;
 
+    // Initialize music system
+    MusicSystem.init();
+    MusicSystem.play('exploration', true);
+
     updateHUD();
     generateMassiveWorld();
     createMassiveNPCPopulation();
@@ -309,18 +612,47 @@ function createMassiveNPCPopulation() {
         const lastName = LAST_NAMES[Math.floor(Math.random() * LAST_NAMES.length)];
         const type = NPC_TYPES[Math.floor(Math.random() * NPC_TYPES.length)];
         
-        game.npcs.push({
+        const npc = {
             id: i,
             name: `${firstName} ${lastName}`,
             x: Math.random() * game.world.width,
             y: Math.random() * game.world.height,
             relationship: 0,
             type: type,
-            dialogue: DIALOGUES[type] || ['Hello!', 'Good day!', 'Greetings!']
-        });
+            dialogue: DIALOGUES[type] || ['Hello!', 'Good day!', 'Greetings!'],
+            isAlly: false,
+            isAlive: true
+        };
+        
+        game.npcs.push(npc);
+        
+        // First 5 NPCs become key allies for the story
+        if (i < 5) {
+            npc.isAlly = true;
+            npc.relationship = 50; // Start as friends
+            game.story.keyAllies.push(npc);
+        }
     }
     
+    // Create the main villain
+    game.story.villain = {
+        id: 999,
+        name: 'Lord Malakar the Destroyer',
+        x: 9500,
+        y: 9500, // Far corner of map
+        hp: 500,
+        maxHp: 500,
+        attack: 50,
+        defense: 30,
+        alive: true,
+        icon: '👹',
+        type: 'villain'
+    };
+    
+    game.enemies.push(game.story.villain);
+    
     console.log(`${game.npcs.length} NPCs spawned!`);
+    console.log(`${game.story.keyAllies.length} key allies identified!`);
     updateNPCList();
 }
 
@@ -381,6 +713,7 @@ function createMassiveEnemyPopulation() {
 // ========================================
 
 let lastTime = 0;
+let lastMusicCheck = 0;
 
 function gameLoop(timestamp) {
     const deltaTime = timestamp - lastTime;
@@ -392,6 +725,15 @@ function gameLoop(timestamp) {
     if (game.player.stamina < game.player.maxStamina && !game.player.inCombat) {
         game.player.stamina = Math.min(game.player.maxStamina, game.player.stamina + 0.2);
         updateHUD();
+    }
+
+    // Dynamic music system - check every 3 seconds
+    if (timestamp - lastMusicCheck > 3000) {
+        const dynamicTrack = MusicSystem.getDynamicTrack();
+        if (dynamicTrack !== MusicSystem.currentTrack) {
+            MusicSystem.play(dynamicTrack, true);
+        }
+        lastMusicCheck = timestamp;
     }
 
     renderWorld();
@@ -620,14 +962,23 @@ function changeRelationship(npcId, amount) {
     if (!npc) return;
 
     npc.relationship = Math.max(-100, Math.min(100, npc.relationship + amount));
-    updateNPCList();
     
+    // Track karma for ending system
     if (amount > 0) {
+        game.story.karma += amount / 2;
+        game.story.heroicActs++;
         showNotification(`${npc.name} likes you more!`, 'success');
     } else if (amount < 0) {
+        game.story.karma += amount / 2;
+        game.story.betrayals++;
         showNotification(`${npc.name} doesn't like that...`, 'error');
     }
     
+    // Cap karma at -100 to 100
+    game.story.karma = Math.max(-100, Math.min(100, game.story.karma));
+    
+    updateNPCList();
+    checkStoryProgression();
     closeDialog();
 }
 
@@ -661,6 +1012,9 @@ function startCombat(enemy) {
     
     game.player.inCombat = true;
     game.currentEnemy = enemy;
+    
+    // Switch to combat music
+    MusicSystem.play('combat', true);
     
     document.getElementById('combat-ui').style.display = 'block';
     document.getElementById('enemy-name').textContent = enemy.name;
@@ -756,10 +1110,26 @@ function enemyDefeated(enemy) {
     
     game.player.exp += enemy.exp;
     game.player.gold += enemy.gold;
+    game.story.enemiesKilled++;
+    
+    // Check if this is the villain
+    if (enemy.id === 999) {
+        handleVillainDefeated();
+        return;
+    }
     
     showNotification(`${enemy.name} defeated! +${enemy.exp} EXP, +${enemy.gold} gold`, 'success');
     
+    // Play victory music
+    MusicSystem.play('victory', false);
+    
+    // Return to exploration music after victory
+    setTimeout(() => {
+        MusicSystem.play(MusicSystem.getDynamicTrack(), true);
+    }, 5000);
+    
     checkLevelUp();
+    checkStoryProgression();
     endCombat();
     
     setTimeout(() => {
@@ -800,6 +1170,13 @@ function checkLevelUp() {
         game.player.mp = game.player.maxMp;
         game.player.attack += 3;
         game.player.defense += 2;
+        
+        // Play level up music
+        const currentTrack = MusicSystem.currentTrack;
+        MusicSystem.play('levelUp', false);
+        setTimeout(() => {
+            MusicSystem.play(currentTrack || 'exploration', true);
+        }, 3000);
         
         showNotification(`LEVEL UP! You are now level ${game.player.level}!`, 'success');
     }
@@ -1314,9 +1691,260 @@ setInterval(() => {
     }
 }, 2000);
 
+// Music control functions
+function toggleMusic() {
+    const enabled = MusicSystem.toggle();
+    const btn = document.getElementById('music-toggle');
+    btn.textContent = enabled ? '🎵 Music ON' : '🔇 Music OFF';
+    showNotification(enabled ? 'Music enabled' : 'Music disabled', 'info');
+}
+
+function changeVolume(value) {
+    MusicSystem.setVolume(value / 100);
+}
+
+// ========================================
+// STORY PROGRESSION & ENDING SYSTEM
+// ========================================
+
+function checkStoryProgression() {
+    const currentStage = game.story.currentStage;
+    const nextStage = game.story.stages[currentStage + 1];
+    
+    if (!nextStage) return;
+    
+    const req = nextStage.requirement;
+    let canProgress = true;
+    
+    if (req.level && game.player.level < req.level) canProgress = false;
+    if (req.enemiesKilled && game.story.enemiesKilled < req.enemiesKilled) canProgress = false;
+    
+    if (canProgress) {
+        game.story.currentStage++;
+        showStoryUpdate(nextStage);
+        
+        // Check if final battle
+        if (game.story.currentStage === 4) {
+            offerFinalBattle();
+        }
+    }
+}
+
+function showStoryUpdate(stage) {
+    showNotification(`📖 STORY UPDATE: ${stage.name}`, 'info');
+    
+    setTimeout(() => {
+        showDialog('The Story Unfolds...', stage.desc, [
+            { text: 'Continue your journey', action: () => closeDialog() }
+        ]);
+    }, 1000);
+}
+
+function offerFinalBattle() {
+    game.story.reachedFinalBattle = true;
+    
+    const message = `The time has come. Lord Malakar awaits in the far reaches of the land. 
+    Your choices have shaped your path. Will you face him as a HERO, join him as a TYRANT, or fall to DARKNESS?
+    
+    Current Karma: ${Math.floor(game.story.karma)}
+    Allies Alive: ${game.story.keyAllies.filter(a => a.isAlive).length}/5
+    
+    Journey to coordinates (9500, 9500) when ready for the FINAL BATTLE.`;
+    
+    showDialog('⚠️ THE FINAL BATTLE BECKONS', message, [
+        { text: 'I am ready', action: () => closeDialog() },
+        { text: 'I need more time', action: () => closeDialog() }
+    ]);
+}
+
+function handleVillainDefeated() {
+    // Determine which ending based on player's karma and choices
+    const karma = game.story.karma;
+    const alliesAlive = game.story.keyAllies.filter(a => a.isAlive).length;
+    
+    if (karma >= 30 && alliesAlive >= 4) {
+        // ENDING 1: GOOD ENDING
+        triggerGoodEnding();
+    } else if (karma <= -30) {
+        // ENDING 2: EVIL ENDING
+        triggerEvilEnding();
+    } else {
+        // ENDING 3: BAD ENDING
+        triggerBadEnding();
+    }
+}
+
+function triggerGoodEnding() {
+    game.story.endingAchieved = 'good';
+    MusicSystem.play('victory', false);
+    
+    const allyNames = game.story.keyAllies.map(a => a.name).join(', ');
+    
+    const endingText = `
+    ✨ THE HERO'S TRIUMPH ✨
+    
+    With courage and compassion, you have defeated Lord Malakar!
+    
+    Your allies stood by your side:
+    ${allyNames}
+    
+    Together, you drove back the darkness. The kingdom is saved!
+    Peace returns to the land. Your name will be sung in legends for generations.
+    
+    All your friends and companions survive and celebrate with you.
+    The people hail you as the TRUE HERO of the realm!
+    
+    ⭐ GOOD ENDING ACHIEVED ⭐
+    
+    Final Stats:
+    Level: ${game.player.level}
+    Karma: ${Math.floor(game.story.karma)} (Heroic)
+    Allies Saved: ${game.story.keyAllies.filter(a => a.isAlive).length}/5
+    Heroic Acts: ${game.story.heroicActs}
+    `;
+    
+    showEndingScreen(endingText, 'good');
+}
+
+function triggerEvilEnding() {
+    game.story.endingAchieved = 'evil';
+    MusicSystem.play('dramatic', false);
+    
+    const allyNames = game.story.keyAllies.map(a => a.name).join(', ');
+    
+    const endingText = `
+    💀 THE TYRANT'S RISE 💀
+    
+    Power corrupted you. Instead of defeating Malakar, you joined forces with him!
+    
+    Your former allies tried to stop you:
+    ${allyNames}
+    
+    But you betrayed them all. In an epic battle, YOU and MALAKAR fought your friends.
+    One by one, they fell to your combined dark power.
+    
+    You have become what you swore to destroy.
+    The kingdom falls under your tyrannical rule.
+    
+    You sit on a throne of bones, feared and alone.
+    The hero has become the VILLAIN.
+    
+    ⚔️ EVIL ENDING ACHIEVED ⚔️
+    
+    Final Stats:
+    Level: ${game.player.level}
+    Karma: ${Math.floor(game.story.karma)} (Evil)
+    Betrayals: ${game.story.betrayals}
+    Former Allies Defeated: ${game.story.keyAllies.length}
+    `;
+    
+    showEndingScreen(endingText, 'evil');
+}
+
+function triggerBadEnding() {
+    game.story.endingAchieved = 'bad';
+    MusicSystem.play('dramatic', false);
+    
+    const endingText = `
+    💀 DARKNESS PREVAILS 💀
+    
+    You fought valiantly, but it was not enough.
+    Lord Malakar's power proved too great.
+    
+    In the final battle, you fell.
+    Your companions perished trying to save you.
+    
+    The darkness consumes the land.
+    Your allies scatter into hiding, hunted and broken.
+    Evil ravages the kingdom unopposed.
+    
+    Cities burn. Hope dies.
+    The age of heroes is over.
+    
+    Perhaps... in another timeline... you could have been stronger.
+    Perhaps you could have made different choices.
+    
+    But in this world, the darkness won.
+    
+    💀 BAD ENDING ACHIEVED 💀
+    
+    Final Stats:
+    Level: ${game.player.level}
+    Karma: ${Math.floor(game.story.karma)}
+    Enemies Killed: ${game.story.enemiesKilled}
+    
+    The world needed a hero... but found only ash.
+    `;
+    
+    showEndingScreen(endingText, 'bad');
+}
+
+function showEndingScreen(text, endingType) {
+    // Stop all gameplay
+    game.keys = {};
+    
+    // Create ending overlay
+    const overlay = document.createElement('div');
+    overlay.id = 'ending-overlay';
+    overlay.innerHTML = `
+        <div class="ending-panel ${endingType}">
+            <pre class="ending-text">${text}</pre>
+            <div class="ending-buttons">
+                <button onclick="location.reload()" class="ending-btn">Play Again</button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(overlay);
+}
+
+// Special function to trigger evil path during battle
+function betrayAllies() {
+    if (!game.story.reachedFinalBattle) return;
+    
+    showDialog('💀 BETRAY YOUR ALLIES?', 
+        'You sense the dark power of Lord Malakar. He offers you a deal: Join him and together you will be unstoppable. Your allies will try to stop you. Will you BETRAY them?',
+        [
+            { 
+                text: '😈 YES - Join the villain and fight my allies!', 
+                action: () => {
+                    game.story.karma = -100;
+                    startBetrayalBattle();
+                }
+            },
+            { 
+                text: '😇 NO - Stay true to my friends', 
+                action: () => {
+                    game.story.karma += 20;
+                    closeDialog();
+                }
+            }
+        ]
+    );
+}
+
+function startBetrayalBattle() {
+    closeDialog();
+    showNotification('💀 You have chosen the path of DARKNESS!', 'error');
+    
+    // Kill all allies
+    game.story.keyAllies.forEach(ally => {
+        ally.isAlive = false;
+    });
+    
+    setTimeout(() => {
+        triggerEvilEnding();
+    }, 2000);
+}
+
 console.log('Medieval RPG - Massive World Edition loaded!');
 console.log('World size: 10000x10000 units');
 console.log('NPCs: 120+ scattered across the world');
 console.log('Resources: 1400+ nodes');
 console.log('Enemies: 200+ creatures');
+console.log('Music System: Dynamic soundtrack with 12 tracks');
+console.log('🎭 STORY SYSTEM: 3 Different Endings Available!');
+console.log('- GOOD ENDING: Save everyone and defeat evil');
+console.log('- EVIL ENDING: Betray allies and join the villain');
+console.log('- BAD ENDING: Fall in battle, darkness wins');
 console.log('Explore with WASD, interact with SPACE, talk with E, attack with F!');
