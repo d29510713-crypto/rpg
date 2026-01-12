@@ -1,5 +1,5 @@
 // ========================================
-// MEDIEVAL RPG - COMPLETE GAME SYSTEM
+// MEDIEVAL RPG - MASSIVE WORLD EDITION
 // ========================================
 
 // Game State
@@ -19,9 +19,10 @@ const game = {
         gold: 0,
         attack: 10,
         defense: 5,
-        x: 400,
-        y: 300,
+        x: 5000, // Start in middle of huge map
+        y: 5000,
         facing: 'down',
+        speed: 4,
         skinTone: '#ffd1a3',
         hairColor: '#4a3728',
         shirtColor: '#8b4513',
@@ -29,9 +30,16 @@ const game = {
         inCombat: false
     },
     world: {
-        time: 720, // minutes from midnight (12:00 PM)
+        width: 10000, // MASSIVE 10000x10000 world
+        height: 10000,
+        time: 720,
         weather: 'clear',
-        timeSpeed: 1
+        timeSpeed: 1,
+        seed: Math.random()
+    },
+    camera: {
+        x: 0,
+        y: 0
     },
     inventory: {},
     equipment: {
@@ -47,7 +55,21 @@ const game = {
     keys: {},
     canvas: null,
     ctx: null,
-    camera: { x: 0, y: 0 }
+    tiles: {},
+    chunks: {},
+    loadedChunks: new Set()
+};
+
+// Terrain types
+const TERRAIN = {
+    GRASS: { color: '#2d5016', walkable: true },
+    DIRT: { color: '#8b6f47', walkable: true },
+    WATER: { color: '#4a90e2', walkable: false },
+    SAND: { color: '#daa520', walkable: true },
+    STONE: { color: '#696969', walkable: true },
+    MOUNTAIN: { color: '#4a4a4a', walkable: false },
+    SNOW: { color: '#ffffff', walkable: true },
+    FOREST: { color: '#1a4d1a', walkable: true }
 };
 
 // Item Database
@@ -68,7 +90,30 @@ const ITEMS = {
     wooden_shield: { name: 'Wooden Shield', icon: '🛡️', type: 'shield', stackable: false, defense: 8 }
 };
 
-// Crafting Recipes
+// NPC Name Generator
+const FIRST_NAMES = ['Arthur', 'Beatrice', 'Cedric', 'Diana', 'Edmund', 'Fiona', 'Gregory', 'Helena', 'Isaac', 'Jane', 
+    'Kenneth', 'Lydia', 'Marcus', 'Natalie', 'Oliver', 'Penelope', 'Quentin', 'Rose', 'Sebastian', 'Tabitha',
+    'Thomas', 'Victoria', 'William', 'Alice', 'Benjamin', 'Catherine', 'David', 'Eleanor', 'Frederick', 'Grace'];
+
+const LAST_NAMES = ['Smith', 'Fletcher', 'Cooper', 'Mason', 'Wright', 'Carter', 'Baker', 'Miller', 'Taylor', 'Turner',
+    'Wood', 'Stone', 'Hill', 'Rivers', 'Brook', 'Field', 'Forest', 'Lake', 'Vale', 'Marsh'];
+
+const NPC_TYPES = ['blacksmith', 'merchant', 'farmer', 'knight', 'guard', 'innkeeper', 'alchemist', 'hunter', 'miner', 'scholar'];
+
+const DIALOGUES = {
+    blacksmith: ['Need weapons or armor?', 'The forge is hot today!', 'I can craft you something special.'],
+    merchant: ['Welcome to my shop!', 'Fine goods for sale!', 'What can I get you?'],
+    farmer: ['The crops grow well.', 'Hard work, honest pay.', 'Fresh produce today!'],
+    knight: ['Honor and valor!', 'The kingdom needs defenders.', 'Train hard, fight harder.'],
+    guard: ['Keep the peace!', 'No trouble on my watch.', 'Move along, citizen.'],
+    innkeeper: ['Welcome, traveler!', 'Need a room?', 'Warm food and soft beds.'],
+    alchemist: ['Potions and elixirs!', 'The secrets of nature.', 'Magic in every bottle.'],
+    hunter: ['The forest provides.', 'Track your prey.', 'Nature is our teacher.'],
+    miner: ['Deep in the earth.', 'Precious ores await.', 'Hard rock, harder work.'],
+    scholar: ['Knowledge is power.', 'The old texts speak of...', 'Study and learn.']
+};
+
+// Recipes
 const RECIPES = [
     { id: 'iron_sword', name: 'Iron Sword', icon: '⚔️', requires: { wood: 2, iron: 3 }, gives: 'iron_sword' },
     { id: 'pickaxe', name: 'Pickaxe', icon: '⛏️', requires: { wood: 3, stone: 2 }, gives: 'pickaxe' },
@@ -79,7 +124,7 @@ const RECIPES = [
     { id: 'steel_sword', name: 'Steel Sword', icon: '🗡️', requires: { iron: 5, wood: 1 }, gives: 'steel_sword' }
 ];
 
-// Skills Database
+// Skills
 const SKILLS = {
     power_strike: { name: 'Power Strike', icon: '⚔️', level: 0, maxLevel: 5, cost: 15, damage: 25 },
     fireball: { name: 'Fireball', icon: '🔥', level: 0, maxLevel: 5, cost: 20, damage: 30 },
@@ -93,9 +138,49 @@ const SKILLS = {
 // INITIALIZATION
 // ========================================
 
-// Initialize inventory with 8 hotbar slots
 for (let i = 1; i <= 8; i++) {
     game.inventory[i] = null;
+}
+
+// Perlin-like noise for terrain generation
+function noise2D(x, y, seed) {
+    const n = Math.sin(x * 12.9898 + y * 78.233 + seed * 43758.5453) * 43758.5453123;
+    return n - Math.floor(n);
+}
+
+function smoothNoise(x, y, seed) {
+    const corners = (noise2D(x-1, y-1, seed) + noise2D(x+1, y-1, seed) + 
+                     noise2D(x-1, y+1, seed) + noise2D(x+1, y+1, seed)) / 16;
+    const sides = (noise2D(x-1, y, seed) + noise2D(x+1, y, seed) + 
+                   noise2D(x, y-1, seed) + noise2D(x, y+1, seed)) / 8;
+    const center = noise2D(x, y, seed) / 4;
+    return corners + sides + center;
+}
+
+function getTerrainAt(x, y) {
+    const tileX = Math.floor(x / 50);
+    const tileY = Math.floor(y / 50);
+    
+    // Multiple octaves of noise for varied terrain
+    const scale1 = 0.01;
+    const scale2 = 0.05;
+    const scale3 = 0.1;
+    
+    const n1 = smoothNoise(tileX * scale1, tileY * scale1, game.world.seed);
+    const n2 = smoothNoise(tileX * scale2, tileY * scale2, game.world.seed + 1);
+    const n3 = smoothNoise(tileX * scale3, tileY * scale3, game.world.seed + 2);
+    
+    const combined = (n1 * 0.5 + n2 * 0.3 + n3 * 0.2);
+    
+    // Terrain based on noise value
+    if (combined < 0.2) return TERRAIN.WATER;
+    if (combined < 0.3) return TERRAIN.SAND;
+    if (combined < 0.5) return TERRAIN.GRASS;
+    if (combined < 0.6) return TERRAIN.FOREST;
+    if (combined < 0.7) return TERRAIN.DIRT;
+    if (combined < 0.8) return TERRAIN.STONE;
+    if (combined < 0.9) return TERRAIN.MOUNTAIN;
+    return TERRAIN.SNOW;
 }
 
 // Character Preview
@@ -113,41 +198,33 @@ function updateCharacterPreview() {
 }
 
 function drawCharacter(ctx, x, y, scale, skin, hair, shirt, pants) {
-    // Head
     ctx.fillStyle = skin;
     ctx.fillRect(x - 8 * scale, y - 15 * scale, 16 * scale, 16 * scale);
     
-    // Hair
     ctx.fillStyle = hair;
     ctx.fillRect(x - 10 * scale, y - 18 * scale, 20 * scale, 8 * scale);
     
-    // Eyes
     ctx.fillStyle = '#000';
     ctx.fillRect(x - 5 * scale, y - 10 * scale, 3 * scale, 3 * scale);
     ctx.fillRect(x + 2 * scale, y - 10 * scale, 3 * scale, 3 * scale);
     
-    // Body
     ctx.fillStyle = shirt;
     ctx.fillRect(x - 10 * scale, y, 20 * scale, 15 * scale);
     
-    // Arms
     ctx.fillStyle = skin;
     ctx.fillRect(x - 14 * scale, y + 2 * scale, 4 * scale, 12 * scale);
     ctx.fillRect(x + 10 * scale, y + 2 * scale, 4 * scale, 12 * scale);
     
-    // Legs
     ctx.fillStyle = pants;
     ctx.fillRect(x - 8 * scale, y + 15 * scale, 6 * scale, 10 * scale);
     ctx.fillRect(x + 2 * scale, y + 15 * scale, 6 * scale, 10 * scale);
 }
 
-// Event Listeners for Customization
 document.getElementById('skin-color').addEventListener('input', updateCharacterPreview);
 document.getElementById('hair-color').addEventListener('input', updateCharacterPreview);
 document.getElementById('shirt-color').addEventListener('input', updateCharacterPreview);
 document.getElementById('pants-color').addEventListener('input', updateCharacterPreview);
 
-// Initialize preview
 updateCharacterPreview();
 
 // Start Game
@@ -160,7 +237,6 @@ function startGame() {
         return;
     }
 
-    // Set character data
     game.player.name = name;
     game.player.class = document.getElementById('char-class').value;
     game.player.skinTone = document.getElementById('skin-color').value;
@@ -168,7 +244,6 @@ function startGame() {
     game.player.shirtColor = document.getElementById('shirt-color').value;
     game.player.pantsColor = document.getElementById('pants-color').value;
 
-    // Set class stats
     const classStats = {
         warrior: { hp: 150, mp: 30, attack: 15, defense: 10 },
         mage: { hp: 80, mp: 120, attack: 8, defense: 3 },
@@ -184,7 +259,6 @@ function startGame() {
     game.player.attack = stats.attack;
     game.player.defense = stats.defense;
 
-    // Hide customization, show game
     document.getElementById('customization-screen').style.display = 'none';
     document.getElementById('game-screen').style.display = 'flex';
 
@@ -192,50 +266,118 @@ function startGame() {
 }
 
 function initializeGame() {
-    // Setup canvas
     game.canvas = document.getElementById('world-canvas');
     game.ctx = game.canvas.getContext('2d');
     game.canvas.width = window.innerWidth - 320;
     game.canvas.height = window.innerHeight - 80;
 
-    // Update HUD
     updateHUD();
-
-    // Generate world
-    generateWorld();
-
-    // Create NPCs
-    createNPCs();
-
-    // Create resources
-    createResources();
-
-    // Create enemies
-    createEnemies();
-
-    // Initialize skills
+    generateMassiveWorld();
+    createMassiveNPCPopulation();
+    createMassiveResourceDistribution();
+    createMassiveEnemyPopulation();
     initializeSkills();
 
-    // Add starter items
     addItem('wood', 5);
     addItem('stone', 3);
     addItem('food', 2);
-    addItem('iron', 1);
 
-    // Update displays
     updateInventoryDisplay();
-    updateNPCList();
     updateSkillsDisplay();
 
-    // Start game loop
     requestAnimationFrame(gameLoop);
 
-    // Show welcome notification
-    showNotification(`Welcome, ${game.player.name}! Your adventure begins...`, 'success');
+    showNotification(`Welcome, ${game.player.name}! A vast world awaits exploration...`, 'success');
 }
 
 // ========================================
-// GAME LOOP
+// MASSIVE WORLD GENERATION
+// ========================================
+
+function generateMassiveWorld() {
+    console.log('Generating massive 10000x10000 world...');
+    // World generated procedurally on-demand using noise functions
+    showNotification('Massive world loaded! Explore 10000x10000 units!', 'info');
+}
+
+function createMassiveNPCPopulation() {
+    console.log('Spawning 100+ NPCs across the world...');
+    
+    // Generate 120 NPCs spread across the massive world
+    for (let i = 0; i < 120; i++) {
+        const firstName = FIRST_NAMES[Math.floor(Math.random() * FIRST_NAMES.length)];
+        const lastName = LAST_NAMES[Math.floor(Math.random() * LAST_NAMES.length)];
+        const type = NPC_TYPES[Math.floor(Math.random() * NPC_TYPES.length)];
+        
+        game.npcs.push({
+            id: i,
+            name: `${firstName} ${lastName}`,
+            x: Math.random() * game.world.width,
+            y: Math.random() * game.world.height,
+            relationship: 0,
+            type: type,
+            dialogue: DIALOGUES[type] || ['Hello!', 'Good day!', 'Greetings!']
+        });
+    }
+    
+    console.log(`${game.npcs.length} NPCs spawned!`);
+    updateNPCList();
+}
+
+function createMassiveResourceDistribution() {
+    console.log('Distributing resources across the world...');
+    
+    const resourceTypes = [
+        { type: 'wood', icon: '🌲', item: 'wood', count: 500 },
+        { type: 'stone', icon: '🪨', item: 'stone', count: 400 },
+        { type: 'iron', icon: '⛏️', item: 'iron', count: 200 },
+        { type: 'food', icon: '🌾', item: 'food', count: 300 }
+    ];
+
+    resourceTypes.forEach(resType => {
+        for (let i = 0; i < resType.count; i++) {
+            game.resources.push({
+                type: resType.type,
+                icon: resType.icon,
+                item: resType.item,
+                x: Math.random() * game.world.width,
+                y: Math.random() * game.world.height,
+                gathered: false
+            });
+        }
+    });
+    
+    console.log(`${game.resources.length} resources distributed!`);
+}
+
+function createMassiveEnemyPopulation() {
+    console.log('Spawning enemies across the world...');
+    
+    const enemyTypes = [
+        { name: 'Goblin', icon: '👺', hp: 30, attack: 8, defense: 2, exp: 25, gold: 10 },
+        { name: 'Bandit', icon: '🗡️', hp: 50, attack: 12, defense: 5, exp: 40, gold: 20 },
+        { name: 'Wolf', icon: '🐺', hp: 40, attack: 10, defense: 3, exp: 30, gold: 5 },
+        { name: 'Orc', icon: '👹', hp: 70, attack: 15, defense: 8, exp: 60, gold: 30 },
+        { name: 'Troll', icon: '🧟', hp: 100, attack: 20, defense: 10, exp: 100, gold: 50 }
+    ];
+
+    for (let i = 0; i < 200; i++) {
+        const type = enemyTypes[Math.floor(Math.random() * enemyTypes.length)];
+        game.enemies.push({
+            ...type,
+            id: i,
+            x: Math.random() * game.world.width,
+            y: Math.random() * game.world.height,
+            maxHp: type.hp,
+            alive: true
+        });
+    }
+    
+    console.log(`${game.enemies.length} enemies spawned!`);
+}
+
+// ========================================
+// GAME LOOP & RENDERING
 // ========================================
 
 let lastTime = 0;
@@ -244,78 +386,206 @@ function gameLoop(timestamp) {
     const deltaTime = timestamp - lastTime;
     lastTime = timestamp;
 
-    // Update time
     updateTime();
+    handleMovement();
 
-    // Regenerate stamina
     if (game.player.stamina < game.player.maxStamina && !game.player.inCombat) {
         game.player.stamina = Math.min(game.player.maxStamina, game.player.stamina + 0.2);
         updateHUD();
     }
 
-    // Render world
     renderWorld();
+    renderEntities();
+    renderPlayer();
 
     requestAnimationFrame(gameLoop);
 }
 
-// ========================================
-// WORLD GENERATION
-// ========================================
+function handleMovement() {
+    const speed = game.player.speed;
+    let newX = game.player.x;
+    let newY = game.player.y;
 
-function generateWorld() {
+    if (game.keys['w'] || game.keys['arrowup']) {
+        newY -= speed;
+        game.player.facing = 'up';
+    }
+    if (game.keys['s'] || game.keys['arrowdown']) {
+        newY += speed;
+        game.player.facing = 'down';
+    }
+    if (game.keys['a'] || game.keys['arrowleft']) {
+        newX -= speed;
+        game.player.facing = 'left';
+    }
+    if (game.keys['d'] || game.keys['arrowright']) {
+        newX += speed;
+        game.player.facing = 'right';
+    }
+
+    // Check terrain
+    const terrain = getTerrainAt(newX, newY);
+    if (terrain.walkable) {
+        game.player.x = Math.max(0, Math.min(game.world.width, newX));
+        game.player.y = Math.max(0, Math.min(game.world.height, newY));
+    }
+
+    // Update camera to follow player
+    game.camera.x = game.player.x - game.canvas.width / 2;
+    game.camera.y = game.player.y - game.canvas.height / 2;
+}
+
+function renderWorld() {
     const ctx = game.ctx;
     const tileSize = 50;
     
-    // Draw grass background
-    ctx.fillStyle = '#2d5016';
-    ctx.fillRect(0, 0, game.canvas.width, game.canvas.height);
+    const startX = Math.floor(game.camera.x / tileSize);
+    const startY = Math.floor(game.camera.y / tileSize);
+    const endX = startX + Math.ceil(game.canvas.width / tileSize) + 1;
+    const endY = startY + Math.ceil(game.canvas.height / tileSize) + 1;
 
-    // Add some variation
-    for (let y = 0; y < game.canvas.height; y += tileSize) {
-        for (let x = 0; x < game.canvas.width; x += tileSize) {
-            if (Math.random() < 0.1) {
-                ctx.fillStyle = '#1a4d1a';
-                ctx.fillRect(x, y, tileSize, tileSize);
+    for (let y = startY; y < endY; y++) {
+        for (let x = startX; x < endX; x++) {
+            const worldX = x * tileSize;
+            const worldY = y * tileSize;
+            
+            const terrain = getTerrainAt(worldX, worldY);
+            
+            const screenX = worldX - game.camera.x;
+            const screenY = worldY - game.camera.y;
+            
+            ctx.fillStyle = terrain.color;
+            ctx.fillRect(screenX, screenY, tileSize, tileSize);
+            
+            // Add visual variation
+            if (terrain === TERRAIN.MOUNTAIN) {
+                ctx.fillStyle = 'rgba(0,0,0,0.3)';
+                ctx.fillRect(screenX, screenY + tileSize/2, tileSize, tileSize/2);
+            } else if (terrain === TERRAIN.FOREST) {
+                ctx.fillStyle = 'rgba(0,0,0,0.2)';
+                ctx.fillRect(screenX + 10, screenY + 10, tileSize - 20, tileSize - 20);
             }
         }
     }
 }
 
-function renderWorld() {
-    generateWorld(); // Redraw world each frame
-    // Player will be rendered as an entity
+function renderEntities() {
+    const ctx = game.ctx;
+    
+    // Render resources
+    game.resources.forEach(resource => {
+        if (resource.gathered) return;
+        
+        const screenX = resource.x - game.camera.x;
+        const screenY = resource.y - game.camera.y;
+        
+        if (screenX < -50 || screenX > game.canvas.width || 
+            screenY < -50 || screenY > game.canvas.height) return;
+        
+        ctx.font = '30px Arial';
+        ctx.fillText(resource.icon, screenX, screenY + 30);
+    });
+    
+    // Render NPCs
+    game.npcs.forEach(npc => {
+        const screenX = npc.x - game.camera.x;
+        const screenY = npc.y - game.camera.y;
+        
+        if (screenX < -50 || screenX > game.canvas.width || 
+            screenY < -50 || screenY > game.canvas.height) return;
+        
+        ctx.font = '40px Arial';
+        ctx.fillText('👤', screenX, screenY + 40);
+        
+        // Name tag
+        ctx.font = '12px Arial';
+        ctx.fillStyle = 'white';
+        ctx.strokeStyle = 'black';
+        ctx.lineWidth = 3;
+        ctx.strokeText(npc.name.split(' ')[0], screenX - 20, screenY - 10);
+        ctx.fillText(npc.name.split(' ')[0], screenX - 20, screenY - 10);
+    });
+    
+    // Render enemies
+    game.enemies.forEach(enemy => {
+        if (!enemy.alive) return;
+        
+        const screenX = enemy.x - game.camera.x;
+        const screenY = enemy.y - game.camera.y;
+        
+        if (screenX < -50 || screenX > game.canvas.width || 
+            screenY < -50 || screenY > game.canvas.height) return;
+        
+        ctx.font = '35px Arial';
+        ctx.fillText(enemy.icon, screenX, screenY + 35);
+    });
+}
+
+function renderPlayer() {
+    const ctx = game.ctx;
+    const screenX = game.canvas.width / 2;
+    const screenY = game.canvas.height / 2;
+    
+    // Draw player character
+    drawCharacter(ctx, screenX, screenY, 1, 
+        game.player.skinTone,
+        game.player.hairColor,
+        game.player.shirtColor,
+        game.player.pantsColor
+    );
+    
+    // Player name
+    ctx.font = 'bold 14px Arial';
+    ctx.fillStyle = 'gold';
+    ctx.strokeStyle = 'black';
+    ctx.lineWidth = 3;
+    ctx.strokeText(game.player.name, screenX - 30, screenY - 30);
+    ctx.fillText(game.player.name, screenX - 30, screenY - 30);
+    
+    // Mini coordinates display
+    ctx.font = '10px Arial';
+    ctx.fillStyle = 'rgba(255,255,255,0.7)';
+    ctx.fillText(`X: ${Math.floor(game.player.x)} Y: ${Math.floor(game.player.y)}`, 10, game.canvas.height - 10);
 }
 
 // ========================================
-// NPCs
+// NPC SYSTEM
 // ========================================
-
-function createNPCs() {
-    game.npcs = [
-        { id: 1, name: 'Blacksmith Tom', x: 400, y: 150, relationship: 0, type: 'blacksmith', dialogue: ['Need weapons or armor?', 'The forge is hot today!', 'I can craft you something special.'] },
-        { id: 2, name: 'Merchant Mary', x: 100, y: 400, relationship: 0, type: 'merchant', dialogue: ['Welcome to my shop!', 'Fine goods for sale!', 'What can I get you?'] },
-        { id: 3, name: 'Farmer John', x: 600, y: 300, relationship: 0, type: 'farmer', dialogue: ['The crops grow well.', 'Hard work, honest pay.', 'Fresh produce today!'] },
-        { id: 4, name: 'Knight Arthur', x: 800, y: 200, relationship: 0, type: 'knight', dialogue: ['Honor and valor!', 'The kingdom needs defenders.', 'Train hard, fight harder.'] }
-    ];
-
-    updateNPCList();
-}
 
 function updateNPCList() {
     const list = document.getElementById('npc-list');
+    
+    // Show only nearby NPCs (within 500 units)
+    const nearbyNPCs = game.npcs.filter(npc => {
+        const dist = Math.hypot(game.player.x - npc.x, game.player.y - npc.y);
+        return dist < 500;
+    }).slice(0, 10); // Show max 10
+    
+    if (nearbyNPCs.length === 0) {
+        list.innerHTML = '<p class="empty-text">No NPCs nearby</p>';
+        return;
+    }
+    
     list.innerHTML = '';
 
-    game.npcs.forEach(npc => {
+    nearbyNPCs.forEach(npc => {
         const div = document.createElement('div');
         div.className = 'npc-item';
-        div.onclick = () => talkToNPC(npc.id);
+        div.onclick = () => {
+            const dist = Math.hypot(game.player.x - npc.x, game.player.y - npc.y);
+            if (dist < 100) {
+                talkToNPC(npc.id);
+            } else {
+                showNotification('Too far away!', 'error');
+            }
+        };
 
         const relStatus = getRelationshipStatus(npc.relationship);
+        const distance = Math.floor(Math.hypot(game.player.x - npc.x, game.player.y - npc.y));
         
         div.innerHTML = `
             <div class="npc-name">${npc.name}</div>
-            <div class="npc-status">${npc.type} - ${relStatus.text}</div>
+            <div class="npc-status">${npc.type} - ${distance}m - ${relStatus.text}</div>
             <div class="relationship-bar">
                 <div class="relationship-fill ${relStatus.class}" style="width: ${50 + npc.relationship / 2}%"></div>
             </div>
@@ -339,9 +609,9 @@ function talkToNPC(npcId) {
     
     showDialog(npc.name, dialogue, [
         { text: '😊 Be Kind (+15 relationship)', action: () => changeRelationship(npcId, 15) },
-        { text: '😐 Be Neutral (no change)', action: () => closeDialog() },
+        { text: '😐 Be Neutral', action: () => closeDialog() },
         { text: '😠 Be Rude (-15 relationship)', action: () => changeRelationship(npcId, -15) },
-        { text: '💰 Trade', action: () => openTrade(npcId) }
+        { text: '💰 Trade', action: () => { showNotification('Trading coming soon!', 'info'); closeDialog(); } }
     ]);
 }
 
@@ -362,30 +632,8 @@ function changeRelationship(npcId, amount) {
 }
 
 // ========================================
-// RESOURCES
+// RESOURCE GATHERING
 // ========================================
-
-function createResources() {
-    const resourceTypes = [
-        { type: 'wood', icon: '🌲', item: 'wood', count: 10 },
-        { type: 'stone', icon: '🪨', item: 'stone', count: 8 },
-        { type: 'iron', icon: '⛏️', item: 'iron', count: 5 },
-        { type: 'food', icon: '🌾', item: 'food', count: 6 }
-    ];
-
-    resourceTypes.forEach(resType => {
-        for (let i = 0; i < resType.count; i++) {
-            game.resources.push({
-                type: resType.type,
-                icon: resType.icon,
-                item: resType.item,
-                x: Math.random() * (game.canvas.width - 100),
-                y: Math.random() * (game.canvas.height - 100),
-                gathered: false
-            });
-        }
-    });
-}
 
 function gatherResource(resource) {
     if (resource.gathered) return;
@@ -399,35 +647,14 @@ function gatherResource(resource) {
     addItem(resource.item, 1);
     showNotification(`Gathered ${ITEMS[resource.item].name}!`, 'success');
     
-    // Respawn after 30 seconds
     setTimeout(() => { resource.gathered = false; }, 30000);
     
     updateHUD();
 }
 
 // ========================================
-// ENEMIES
+// COMBAT SYSTEM
 // ========================================
-
-function createEnemies() {
-    const enemyTypes = [
-        { name: 'Goblin', icon: '👺', hp: 30, attack: 8, defense: 2, exp: 25, gold: 10 },
-        { name: 'Bandit', icon: '🗡️', hp: 50, attack: 12, defense: 5, exp: 40, gold: 20 },
-        { name: 'Wolf', icon: '🐺', hp: 40, attack: 10, defense: 3, exp: 30, gold: 5 }
-    ];
-
-    for (let i = 0; i < 8; i++) {
-        const type = enemyTypes[Math.floor(Math.random() * enemyTypes.length)];
-        game.enemies.push({
-            ...type,
-            id: i,
-            x: Math.random() * (game.canvas.width - 100),
-            y: Math.random() * (game.canvas.height - 100),
-            maxHp: type.hp,
-            alive: true
-        });
-    }
-}
 
 function startCombat(enemy) {
     if (!enemy.alive) return;
@@ -469,7 +696,6 @@ function attackEnemy() {
         return;
     }
 
-    // Enemy attacks back
     setTimeout(() => {
         const enemyDamage = Math.max(1, enemy.attack - game.player.defense + Math.floor(Math.random() * 5));
         game.player.hp = Math.max(0, game.player.hp - enemyDamage);
@@ -536,7 +762,6 @@ function enemyDefeated(enemy) {
     checkLevelUp();
     endCombat();
     
-    // Respawn enemy after 60 seconds
     setTimeout(() => {
         enemy.alive = true;
         enemy.hp = enemy.maxHp;
@@ -551,8 +776,8 @@ function playerDefeated() {
     
     game.player.hp = game.player.maxHp / 2;
     game.player.mp = game.player.maxMp / 2;
-    game.player.x = 400;
-    game.player.y = 300;
+    game.player.x = 5000;
+    game.player.y = 5000;
     
     updateHUD();
 }
@@ -569,7 +794,6 @@ function checkLevelUp() {
         game.player.exp -= game.player.expToNext;
         game.player.expToNext = Math.floor(game.player.expToNext * 1.5);
         
-        // Increase stats
         game.player.maxHp += 20;
         game.player.hp = game.player.maxHp;
         game.player.maxMp += 10;
@@ -591,9 +815,7 @@ function addItem(itemId, quantity = 1) {
     const item = ITEMS[itemId];
     if (!item) return false;
 
-    // Find existing stack or empty slot
     if (item.stackable) {
-        // Find existing stack
         for (let i = 1; i <= 8; i++) {
             const slot = game.inventory[i];
             if (slot && slot.id === itemId) {
@@ -604,7 +826,6 @@ function addItem(itemId, quantity = 1) {
         }
     }
 
-    // Find empty slot
     for (let i = 1; i <= 8; i++) {
         if (!game.inventory[i]) {
             game.inventory[i] = { id: itemId, quantity: quantity };
@@ -664,24 +885,20 @@ function equipItem(slotId, equipSlot) {
 
     const item = ITEMS[slot.id];
     
-    // Unequip current item
     if (game.equipment[equipSlot]) {
         const oldItem = ITEMS[game.equipment[equipSlot]];
         if (oldItem.attack) game.player.attack -= oldItem.attack;
         if (oldItem.defense) game.player.defense -= oldItem.defense;
         
-        // Return to inventory
         addItem(game.equipment[equipSlot], 1);
     }
 
-    // Equip new item
     game.equipment[equipSlot] = slot.id;
     if (item.attack) game.player.attack += item.attack;
     if (item.defense) game.player.defense += item.defense;
     
     removeItem(slotId, 1);
     
-    // Update display
     const display = document.getElementById(`eq-${equipSlot}`);
     if (display) display.textContent = item.icon;
     
@@ -777,7 +994,6 @@ function craftItem(recipeId) {
     const recipe = RECIPES.find(r => r.id === recipeId);
     if (!recipe) return;
 
-    // Check if can craft
     const canCraft = Object.entries(recipe.requires).every(([itemId, amount]) => {
         return countItem(itemId) >= amount;
     });
@@ -787,7 +1003,6 @@ function craftItem(recipeId) {
         return;
     }
 
-    // Remove materials
     Object.entries(recipe.requires).forEach(([itemId, amount]) => {
         let remaining = amount;
         for (let i = 1; i <= 8 && remaining > 0; i++) {
@@ -800,7 +1015,6 @@ function craftItem(recipeId) {
         }
     });
 
-    // Add crafted item
     addItem(recipe.gives, 1);
     showNotification(`Crafted ${recipe.name}!`, 'success');
     updateRecipeDisplay();
@@ -813,7 +1027,6 @@ function craftItem(recipeId) {
 function initializeSkills() {
     game.skills = { ...SKILLS };
     
-    // Unlock starting skills based on class
     const classSkills = {
         warrior: ['power_strike', 'shield_bash'],
         mage: ['fireball', 'heal'],
@@ -869,12 +1082,12 @@ function useSkill(skillId) {
 }
 
 // ========================================
-// TIME & WEATHER SYSTEM
+// TIME & WEATHER
 // ========================================
 
 function updateTime() {
-    game.world.time += game.world.timeSpeed / 60; // Increase time
-    if (game.world.time >= 1440) game.world.time = 0; // Reset at midnight
+    game.world.time += game.world.timeSpeed / 60;
+    if (game.world.time >= 1440) game.world.time = 0;
 
     const hours = Math.floor(game.world.time / 60);
     const minutes = Math.floor(game.world.time % 60);
@@ -884,7 +1097,6 @@ function updateTime() {
     document.getElementById('time-display').textContent = 
         `${displayHours}:${minutes.toString().padStart(2, '0')} ${period}`;
 
-    // Random weather changes
     if (Math.random() < 0.001) {
         const weathers = ['☀️ Clear', '🌧️ Rain', '⛈️ Storm', '☁️ Cloudy'];
         game.world.weather = weathers[Math.floor(Math.random() * weathers.length)];
@@ -897,39 +1109,33 @@ function updateTime() {
 // ========================================
 
 function updateHUD() {
-    // Player name and level
     document.getElementById('player-name').textContent = game.player.name;
     document.getElementById('player-level').textContent = game.player.level;
     document.getElementById('player-class').textContent = ` (${game.player.class})`;
 
-    // Stats
     document.getElementById('attack-stat').textContent = game.player.attack;
     document.getElementById('defense-stat').textContent = game.player.defense;
     document.getElementById('gold-amount').textContent = game.player.gold;
 
-    // HP
     const hpPercent = (game.player.hp / game.player.maxHp) * 100;
     document.getElementById('hp-bar').style.width = hpPercent + '%';
     document.getElementById('hp-text').textContent = `${Math.floor(game.player.hp)}/${game.player.maxHp}`;
 
-    // MP
     const mpPercent = (game.player.mp / game.player.maxMp) * 100;
     document.getElementById('mp-bar').style.width = mpPercent + '%';
     document.getElementById('mp-text').textContent = `${Math.floor(game.player.mp)}/${game.player.maxMp}`;
 
-    // Stamina
     const stPercent = (game.player.stamina / game.player.maxStamina) * 100;
     document.getElementById('st-bar').style.width = stPercent + '%';
     document.getElementById('st-text').textContent = `${Math.floor(game.player.stamina)}/${game.player.maxStamina}`;
 
-    // EXP
     const xpPercent = (game.player.exp / game.player.expToNext) * 100;
     document.getElementById('xp-bar').style.width = xpPercent + '%';
     document.getElementById('xp-text').textContent = `${game.player.exp}/${game.player.expToNext}`;
 }
 
 // ========================================
-// DIALOG SYSTEM
+// DIALOG & UI
 // ========================================
 
 function showDialog(speaker, text, options = []) {
@@ -955,10 +1161,6 @@ function closeDialog() {
     document.getElementById('dialog-box').classList.remove('show');
 }
 
-// ========================================
-// NOTIFICATIONS
-// ========================================
-
 function showNotification(message, type = 'info') {
     const area = document.getElementById('notification-area');
     const notif = document.createElement('div');
@@ -979,27 +1181,8 @@ function showNotification(message, type = 'info') {
 document.addEventListener('keydown', (e) => {
     game.keys[e.key.toLowerCase()] = true;
 
-    // Movement
-    const speed = 5;
-    if (e.key === 'w' || e.key === 'ArrowUp') {
-        game.player.y = Math.max(0, game.player.y - speed);
-        game.player.facing = 'up';
-    }
-    if (e.key === 's' || e.key === 'ArrowDown') {
-        game.player.y = Math.min(game.canvas.height - 50, game.player.y + speed);
-        game.player.facing = 'down';
-    }
-    if (e.key === 'a' || e.key === 'ArrowLeft') {
-        game.player.x = Math.max(0, game.player.x - speed);
-        game.player.facing = 'left';
-    }
-    if (e.key === 'd' || e.key === 'ArrowRight') {
-        game.player.x = Math.min(game.canvas.width - 50, game.player.x + speed);
-        game.player.facing = 'right';
-    }
-
-    // Actions
     if (e.key === ' ') {
+        e.preventDefault();
         interactNearby();
     }
     if (e.key === 'e') {
@@ -1014,8 +1197,10 @@ document.addEventListener('keydown', (e) => {
     if (e.key === 'r') {
         rest();
     }
+    if (e.key === 'm') {
+        openMap();
+    }
 
-    // Hotbar
     if (e.key >= '1' && e.key <= '8') {
         useItem(parseInt(e.key));
     }
@@ -1026,7 +1211,6 @@ document.addEventListener('keyup', (e) => {
 });
 
 function interactNearby() {
-    // Check for resources
     game.resources.forEach(resource => {
         const dist = Math.hypot(game.player.x - resource.x, game.player.y - resource.y);
         if (dist < 60 && !resource.gathered) {
@@ -1038,7 +1222,7 @@ function interactNearby() {
 function talkToNearbyNPC() {
     game.npcs.forEach(npc => {
         const dist = Math.hypot(game.player.x - npc.x, game.player.y - npc.y);
-        if (dist < 70) {
+        if (dist < 100) {
             talkToNPC(npc.id);
         }
     });
@@ -1047,7 +1231,7 @@ function talkToNearbyNPC() {
 function attackNearbyEnemy() {
     game.enemies.forEach(enemy => {
         const dist = Math.hypot(game.player.x - enemy.x, game.player.y - enemy.y);
-        if (dist < 70 && enemy.alive) {
+        if (dist < 100 && enemy.alive) {
             startCombat(enemy);
         }
     });
@@ -1062,47 +1246,56 @@ function rest() {
 }
 
 // ========================================
-// MENU FUNCTIONS
+// MAP SYSTEM
 // ========================================
-
-function openInventory() {
-    document.getElementById('inventory-menu').classList.add('show');
-}
-
-function closeInventory() {
-    document.getElementById('inventory-menu').classList.remove('show');
-}
 
 function openMap() {
     const menu = document.getElementById('map-menu');
     menu.classList.add('show');
     
-    // Draw simple map
     const canvas = document.getElementById('map-canvas');
     const ctx = canvas.getContext('2d');
     
-    ctx.fillStyle = '#2d5016';
-    ctx.fillRect(0, 0, 800, 600);
+    const scale = 800 / game.world.width;
+    
+    // Draw terrain
+    for (let y = 0; y < 800; y += 10) {
+        for (let x = 0; x < 800; x += 10) {
+            const worldX = x / scale;
+            const worldY = y / scale;
+            const terrain = getTerrainAt(worldX, worldY);
+            ctx.fillStyle = terrain.color;
+            ctx.fillRect(x, y, 10, 10);
+        }
+    }
     
     // Draw player
+    const px = game.player.x * scale;
+    const py = game.player.y * scale;
     ctx.fillStyle = 'gold';
-    ctx.fillRect(390, 290, 20, 20);
+    ctx.beginPath();
+    ctx.arc(px, py, 5, 0, Math.PI * 2);
+    ctx.fill();
     
-    // Draw NPCs
+    // Draw nearby NPCs
     ctx.fillStyle = '#3b82f6';
     game.npcs.forEach(npc => {
-        const x = (npc.x / game.canvas.width) * 800;
-        const y = (npc.y / game.canvas.height) * 600;
-        ctx.fillRect(x - 5, y - 5, 10, 10);
+        const nx = npc.x * scale;
+        const ny = npc.y * scale;
+        ctx.beginPath();
+        ctx.arc(nx, ny, 3, 0, Math.PI * 2);
+        ctx.fill();
     });
     
-    // Draw enemies
+    // Draw nearby enemies
     ctx.fillStyle = '#ef4444';
     game.enemies.forEach(enemy => {
         if (!enemy.alive) return;
-        const x = (enemy.x / game.canvas.width) * 800;
-        const y = (enemy.y / game.canvas.height) * 600;
-        ctx.fillRect(x - 5, y - 5, 10, 10);
+        const ex = enemy.x * scale;
+        const ey = enemy.y * scale;
+        ctx.beginPath();
+        ctx.arc(ex, ey, 2, 0, Math.PI * 2);
+        ctx.fill();
     });
 }
 
@@ -1110,10 +1303,20 @@ function closeMap() {
     document.getElementById('map-menu').classList.remove('show');
 }
 
-function openTrade(npcId) {
-    showNotification('Trading system coming soon!', 'info');
-    closeDialog();
+function closeInventory() {
+    document.getElementById('inventory-menu').classList.remove('show');
 }
 
-// Initialize game when ready
-console.log('Medieval RPG loaded! Press Start to begin your adventure!');
+// Update NPC list periodically
+setInterval(() => {
+    if (game.player) {
+        updateNPCList();
+    }
+}, 2000);
+
+console.log('Medieval RPG - Massive World Edition loaded!');
+console.log('World size: 10000x10000 units');
+console.log('NPCs: 120+ scattered across the world');
+console.log('Resources: 1400+ nodes');
+console.log('Enemies: 200+ creatures');
+console.log('Explore with WASD, interact with SPACE, talk with E, attack with F!');
